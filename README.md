@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Dashboards/Capa.png" alt="Capa do projeto Domy Doces — Análise de Vendas" width="100%">
+</p>
+
 <h1 align="center">🍬 Domy Doces — Análise de Vendas</h1>
 
 <p align="center">
@@ -36,6 +40,22 @@ Peguei os dados de vendas reais de uma loja de doces, presos em planilhas export
 - 🔄 **O campeão gira quase todo dia** (a cada 1,4 dia), o que faz dele a maior alavanca de lucro com pequenos ajustes
 - ⭐ O **campeão de vendas tem margem apertada** (~22%), a maior oportunidade de lucro
 - ⚠️ **9 produtos vendidos abaixo do custo**, sinalizados para a loja investigar (queima de estoque, erro de preço ou cadastro errado)
+
+## 🖥️ O dashboard
+
+Três páginas, cada uma respondendo a uma pergunta diferente do negócio.
+
+**Painel Executivo** — *como o negócio está indo?* KPIs, evolução mês a mês e padrões de venda na semana e no ano.
+
+![Dashboard — Painel Executivo](Dashboards/Dashboard_Visao_Geral.png)
+
+**Curva ABC** — *quais produtos realmente sustentam o faturamento?* O princípio de Pareto aplicado ao catálogo para separar o essencial do acessório.
+
+![Dashboard — Curva ABC](Dashboards/Dashboard_Visao_Produtos.png)
+
+**Análise de Produtos** — *quão rentável é cada item?* Saúde da margem do portfólio e a matriz margem × giro, que aponta exatamente onde mexer para ganhar dinheiro.
+
+![Dashboard — Análise de Produtos](Dashboards/Dashboard_Visao_Margem.png)
 
 ## 🕵️ O diferencial: governança de dados
 

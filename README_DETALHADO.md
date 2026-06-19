@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Dashboards/Capa.png" alt="Capa do projeto Domy Doces — Análise de Vendas" width="100%">
+</p>
+
 <h1 align="center">📊 Domy Doces — Da Planilha à Decisão</h1>
 
 <p align="center">
@@ -531,6 +535,8 @@ A solução foi marcar cada venda com uma sinalização (`tem_custo`): vale 1 qu
 
 ### 5.2 Página 1 — Painel Executivo
 
+![Página 1 — Painel Executivo](Dashboards/Dashboard_Visao_Geral.png)
+
 **Objetivo.** É a página de abertura, pensada para responder uma única pergunta em cinco segundos: *como o negócio está indo?* É o que a diretoria olha primeiro, antes de qualquer detalhe.
 
 **O que ela mostra.** Cinco indicadores-chave no topo, numa sequência que conta uma história, Faturamento (quanto entrou), Lucro Bruto (quanto sobrou na mercadoria), Margem (a eficiência por real vendido), Ticket Médio (quanto cada cliente gasta por compra) e Número de Vendas (quantas transações). Abaixo, a evolução mês a mês, os produtos que mais faturam e mais vendem, e o comportamento por dia da semana. Cada KPI traz a comparação com o mês anterior, sinalizando em verde ou vermelho se melhorou ou piorou.
@@ -549,6 +555,8 @@ A solução foi marcar cada venda com uma sinalização (`tem_custo`): vale 1 qu
 
 ### 5.3 Página 2 — Curva ABC
 
+![Página 2 — Curva ABC](Dashboards/Dashboard_Visao_Produtos.png)
+
 **Objetivo.** Esta página responde a uma pergunta que todo gestor de varejo precisa fazer mas raramente mede: *quais produtos realmente sustentam o faturamento?* Ela aplica o **princípio de Pareto** (a regra do 80/20) para separar o essencial do acessório.
 
 **O que ela mostra.** Os produtos são ordenados do que mais fatura para o que menos fatura, e classificados em três grupos: **A** (os que concentram a maior parte do faturamento), **B** (os intermediários) e **C** (a cauda de produtos que pesam menos). A Curva ABC aqui tem um objetivo prático: focar nos produtos que realmente movem o faturamento, em vez de diluir a análise entre os milhares de itens do catálogo. Por isso o recorte são os **30 maiores produtos**, e os percentuais desta página são calculados **dentro desse grupo**, não sobre o faturamento total da loja. É uma lupa sobre os campeões.
@@ -560,6 +568,8 @@ A solução foi marcar cada venda com uma sinalização (`tem_custo`): vale 1 qu
 - **A força está no catálogo amplo (cauda longa).** Se o produto nº 1 vale só 2,26% do total da loja, fica claro que o faturamento da Domy não vem de dois ou três campeões, e sim de **muitos produtos contribuindo um pouco cada**, um catálogo extenso e bem distribuído. Isso tem duas leituras: de um lado é resiliência (a loja não quebra se um item sumir); de outro, é um **desafio de gestão de mix**, porque administrar bem centenas de itens exige controle de estoque e curadoria constante. A Curva ABC serve justamente para **priorizar os campeões** (nunca deixar faltar um produto do Grupo A) e, na cauda, decidir o que vale manter por conveniência de sortimento e o que pode ser enxugado para liberar capital e espaço.
 
 ### 5.4 Página 3 — Análise de Produtos
+
+![Página 3 — Análise de Produtos](Dashboards/Dashboard_Visao_Margem.png)
 
 **Objetivo.** Se a página 2 olha *quanto* cada produto fatura, esta olha *quão rentável* ele é. O objetivo é entender a **saúde da margem** do portfólio, onde está o lucro e onde estão os riscos.
 
