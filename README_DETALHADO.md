@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="Dashboards/Capa.png" alt="Capa do projeto Domy Doces — Análise de Vendas" width="100%">
-</p>
-
 <h1 align="center">📊 Domy Doces — Da Planilha à Decisão</h1>
 
 <p align="center">
@@ -30,6 +26,7 @@
 4. [Modelagem no SQL Server](#4-modelagem-no-sql-server)
    - [4.1 As tabelas e a escolha de cada tipo de dado](#41-as-tabelas-e-a-escolha-de-cada-tipo-de-dado)
    - [4.2 As Views — regras de negócio no banco](#42-as-views--regras-de-negócio-no-banco)
+   - [4.3 O modelo de dados (Star Schema)](#43-o-modelo-de-dados-star-schema)
 5. [Do Dado à Decisão — o Dashboard](#5-do-dado-à-decisão--o-dashboard)
    - [5.1 Como os indicadores são construídos](#51-como-os-indicadores-são-construídos)
    - [5.2 Página 1 — Painel Executivo](#52-página-1--painel-executivo)
@@ -334,6 +331,20 @@ vendas.to_sql('fato_vendas', engine, if_exists='append', index=False, chunksize=
 
 Um cuidado que vale destacar: antes de subir a dimensão, removo duplicatas de `cod_ean` (`drop_duplicates`). Isso porque o `cod_ean` vai ser a **chave primária** de `dim_produtos` no banco, e chave primária não admite repetição, um produto, um registro. Garantir isso aqui evita que a carga falhe lá na frente.
 
+**As etapas de importação, do início ao fim.** Juntando as três etapas anteriores, o fluxo completo de importação (que se repete a cada novo fechamento de mês) é o seguinte:
+
+| # | Etapa | Entrada | Saída | O que acontece |
+|---|-------|---------|-------|----------------|
+| 1 | **Extração das vendas** | Excel com 9 abas mensais | `vendas_consolidado.csv` | Empilha as abas, limpa, remove testes, enxuga colunas |
+| 2 | **Extração dos custos** | `.xls` binário do ERP | `custo_consolidado.csv` | Lê com `xlrd`, converte valores BR para número, padroniza |
+| 3 | **Conexão com o banco** | Credenciais do SQL Server | Conexão ativa | Autenticação integrada do Windows, sem senha no código |
+| 4 | **Limpeza da dimensão** | — | — | Remove duplicatas de `cod_ean` (a chave primária) |
+| 5 | **Carga da dimensão** | `custo_consolidado.csv` | Tabela `dim_produtos` populada | `DELETE` na tabela e reinserção do dado tratado |
+| 6 | **Carga do fato** | `vendas_consolidado.csv` | Tabela `fato_vendas` populada | `DELETE` na tabela e reinserção do dado tratado |
+| 7 | **Atualização do dashboard** | Tabelas atualizadas | Visuais recalculados | O Power BI relê do banco e refaz os números |
+
+O ponto central desse desenho é a **idempotência**: como cada carga esvazia a tabela antes de inserir (passos 5 e 6), o pipeline pode ser executado quantas vezes for preciso, sempre chegando ao mesmo resultado, sem risco de duplicar vendas ou produtos. Isso é o que torna a atualização mensal um processo seguro e repetível, em vez de uma operação manual sujeita a erro.
+
 ---
 
 ### 3.4 Validação e qualidade de dados
@@ -511,6 +522,44 @@ GO
 
 **A coluna de ordenação (`ordem_faixa`).** Repare que, além do texto da faixa, criei um número de ordem (1 a 5, e 99 para os inválidos). Isso existe por um detalhe prático de visualização: se eu deixasse o Power BI ordenar as faixas pelo texto, elas sairiam em ordem alfabética ("10-20%" viria antes de "Abaixo de 10%"), o que não faz sentido. Com a coluna numérica, eu garanto que as faixas apareçam na ordem lógica de rentabilidade, da pior para a melhor.
 
+### 4.3 O modelo de dados (Star Schema)
+
+Com as tabelas e as views prontas no banco, o passo seguinte foi montar o **modelo de dados** dentro do Power BI, ou seja, definir como as tabelas se relacionam entre si. A escolha foi um **Star Schema** (esquema estrela), o padrão da indústria para modelos analíticos.
+
+A ideia do esquema estrela é simples e poderosa: no centro fica a **tabela fato** (os eventos que se acumulam, as vendas), e ao redor ficam as **tabelas dimensão** (o contexto que descreve esses eventos, o produto e o tempo). Visualmente:
+
+```
+                  ┌──────────────────────┐
+                  │     dCalendario      │   DIMENSÃO TEMPO
+                  │  (datas, mês, dia    │   (criada em DAX)
+                  │   da semana, etc.)   │
+                  └──────────┬───────────┘
+                             │  1
+                             │
+                             │  N
+                  ┌──────────┴───────────┐
+                  │  vw_vendas_completa  │   FATO
+   ┌──────────────┤   (cada item de      │   (centro do modelo)
+   │  N           │    cada venda)       │
+   │              └──────────────────────┘
+   │  1
+┌──┴───────────────────┐
+│   vw_dim_produtos    │   DIMENSÃO PRODUTO
+│  (cadastro, custo,   │
+│   margem, faixas)    │
+└──────────────────────┘
+```
+
+**Os relacionamentos e a cardinalidade.** As ligações entre as tabelas são todas do tipo **um para muitos** (1:N), o que é a estrutura correta para um modelo estrela:
+
+- **`vw_dim_produtos` (1) → `vw_vendas_completa` (N)**, ligadas pelo `cod_ean`. Um produto existe **uma vez** no cadastro, mas pode aparecer em **muitas** linhas de venda. A direção do filtro vai da dimensão para o fato: ao selecionar um produto (ou uma faixa de margem), o modelo filtra todas as vendas correspondentes.
+
+- **`dCalendario` (1) → `vw_vendas_completa` (N)**, ligadas pela data. Cada dia existe **uma vez** no calendário, mas pode conter **muitas** vendas. Isso é o que permite analisar faturamento por mês, por dia da semana ou por qualquer recorte de tempo.
+
+**Por que esse desenho importa na prática.** O Star Schema não é capricho técnico, ele tem efeito direto no resultado. Como as dimensões "abraçam" o fato e propagam seus filtros, qualquer combinação de filtros no dashboard (um mês específico, uma faixa de margem, um dia da semana) recalcula os números corretamente, sem ambiguidade. Modelos mal desenhados (com tabelas ligadas de qualquer jeito ou relacionamentos muitos-para-muitos) geram números que não batem e filtros que se comportam de forma imprevisível. O esquema estrela é o que garante que **um real filtrado em qualquer lugar continue sendo o mesmo real**.
+
+**A tabela de calendário dedicada.** Um detalhe importante: a `dCalendario` não veio do banco, foi **criada dentro do Power BI em DAX**, gerando uma linha para cada dia do período com colunas auxiliares (ano, mês, nome do mês, trimestre, dia da semana, número da semana). Ter uma tabela de tempo dedicada é uma boa prática essencial em modelagem analítica: ela garante que todos os dias existam no modelo (mesmo dias sem venda), permite ordenar corretamente meses e dias da semana, e é o que habilita comparações como "este mês versus o mês anterior".
+
 ---
 
 ## 5. Do Dado à Decisão — o Dashboard
@@ -533,9 +582,23 @@ A solução foi marcar cada venda com uma sinalização (`tem_custo`): vale 1 qu
 
 **Transação ≠ unidade.** Por fim, uma distinção que aparece em vários pontos do dashboard. O **número de vendas** conta *cupons* (transações), quantas compras aconteceram, e não a quantidade de itens. Uma compra com cinco produtos é uma venda, não cinco. Essa diferença importa: para medir o movimento da loja (quantos clientes, qual o ritmo), o número de transações é o certo; para medir giro de produto (quanto saiu de cada item), aí sim se conta unidades. Cada análise usa a métrica adequada à pergunta.
 
-### 5.2 Página 1 — Painel Executivo
+**O conjunto de medidas, em resumo.** Todas as medidas foram organizadas numa tabela dedicada no modelo (uma tabela só de cálculos, sem dados próprios), construídas em camadas: as básicas alimentam as derivadas. O quadro abaixo resume os principais indicadores e o que cada um responde:
 
-![Página 1 — Painel Executivo](Dashboards/Dashboard_Visao_Geral.png)
+| Indicador | O que mede | Como é construído (em linguagem simples) |
+|-----------|-----------|------------------------------------------|
+| **Faturamento Total** | Quanto dinheiro entrou | Soma de (quantidade × preço praticado) de cada item |
+| **Custo Total** | Quanto custou a mercadoria vendida | Soma de (quantidade × custo de cadastro) |
+| **Lucro Bruto** | Quanto sobrou sobre a mercadoria | Faturamento − Custo Total |
+| **Margem Bruta %** | Eficiência por real vendido | Lucro ÷ faturamento, considerando só vendas com custo conhecido |
+| **Nº de Vendas** | Quantas compras (movimento) | Contagem de cupons distintos |
+| **Ticket Médio** | Gasto médio por compra | Faturamento ÷ Nº de Vendas |
+| **Qtd Vendida** | Volume em unidades | Soma das quantidades de itens |
+| **Cadência (dias)** | Ritmo de venda de um produto | Período ativo do produto ÷ dias em que houve venda |
+| **Curva ABC** | Concentração do faturamento | Faturamento acumulado, ordenado do maior para o menor |
+
+Além dessas, há um grupo de medidas de **comparação com o mês anterior** (variação de faturamento, de margem, etc.), que alimentam as setas de subida e descida nos cartões do painel, e medidas de apoio para os rótulos dos gráficos. Todas seguem o mesmo princípio: cada número exibido no dashboard tem uma definição clara por trás, para que ninguém precise adivinhar o que ele significa.
+
+### 5.2 Página 1 — Painel Executivo
 
 **Objetivo.** É a página de abertura, pensada para responder uma única pergunta em cinco segundos: *como o negócio está indo?* É o que a diretoria olha primeiro, antes de qualquer detalhe.
 
@@ -555,8 +618,6 @@ A solução foi marcar cada venda com uma sinalização (`tem_custo`): vale 1 qu
 
 ### 5.3 Página 2 — Curva ABC
 
-![Página 2 — Curva ABC](Dashboards/Dashboard_Visao_Produtos.png)
-
 **Objetivo.** Esta página responde a uma pergunta que todo gestor de varejo precisa fazer mas raramente mede: *quais produtos realmente sustentam o faturamento?* Ela aplica o **princípio de Pareto** (a regra do 80/20) para separar o essencial do acessório.
 
 **O que ela mostra.** Os produtos são ordenados do que mais fatura para o que menos fatura, e classificados em três grupos: **A** (os que concentram a maior parte do faturamento), **B** (os intermediários) e **C** (a cauda de produtos que pesam menos). A Curva ABC aqui tem um objetivo prático: focar nos produtos que realmente movem o faturamento, em vez de diluir a análise entre os milhares de itens do catálogo. Por isso o recorte são os **30 maiores produtos**, e os percentuais desta página são calculados **dentro desse grupo**, não sobre o faturamento total da loja. É uma lupa sobre os campeões.
@@ -568,8 +629,6 @@ A solução foi marcar cada venda com uma sinalização (`tem_custo`): vale 1 qu
 - **A força está no catálogo amplo (cauda longa).** Se o produto nº 1 vale só 2,26% do total da loja, fica claro que o faturamento da Domy não vem de dois ou três campeões, e sim de **muitos produtos contribuindo um pouco cada**, um catálogo extenso e bem distribuído. Isso tem duas leituras: de um lado é resiliência (a loja não quebra se um item sumir); de outro, é um **desafio de gestão de mix**, porque administrar bem centenas de itens exige controle de estoque e curadoria constante. A Curva ABC serve justamente para **priorizar os campeões** (nunca deixar faltar um produto do Grupo A) e, na cauda, decidir o que vale manter por conveniência de sortimento e o que pode ser enxugado para liberar capital e espaço.
 
 ### 5.4 Página 3 — Análise de Produtos
-
-![Página 3 — Análise de Produtos](Dashboards/Dashboard_Visao_Margem.png)
 
 **Objetivo.** Se a página 2 olha *quanto* cada produto fatura, esta olha *quão rentável* ele é. O objetivo é entender a **saúde da margem** do portfólio, onde está o lucro e onde estão os riscos.
 
